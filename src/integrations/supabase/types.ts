@@ -14,16 +14,150 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      daily_logs: {
+        Row: {
+          abw: number | null
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          abw?: number | null
+          created_at?: string
+          date: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          abw?: number | null
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      feed_entries: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          feeding_time_id: string
+          id: string
+          log_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          feeding_time_id: string
+          id?: string
+          log_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          feeding_time_id?: string
+          id?: string
+          log_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_entries_feeding_time_id_fkey"
+            columns: ["feeding_time_id"]
+            isOneToOne: false
+            referencedRelation: "feeding_times"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_entries_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "daily_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feeding_times: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "worker"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +284,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "worker"],
+    },
   },
 } as const
