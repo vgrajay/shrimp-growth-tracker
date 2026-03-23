@@ -73,7 +73,7 @@ export default function Dashboard() {
         </div>
 
         {/* Growth chart */}
-        <GrowthChart data={chartData} />
+        {isAdmin && <GrowthChart data={chartData} />}
 
         {/* Admin: feeding times config */}
         {isAdmin && <AdminFeedingTimes />}
