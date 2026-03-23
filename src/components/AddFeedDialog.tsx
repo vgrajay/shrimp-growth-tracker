@@ -28,15 +28,23 @@ interface FeedingTime {
   sort_order: number;
 }
 
-interface Props {
-  onAdded: () => void;
+interface Farm {
+  id: string;
+  name: string;
 }
 
-export default function AddFeedDialog({ onAdded }: Props) {
+interface Props {
+  onAdded: () => void;
+  defaultFarmId?: string;
+}
+
+export default function AddFeedDialog({ onAdded, defaultFarmId }: Props) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [feedingTimes, setFeedingTimes] = useState<FeedingTime[]>([]);
+  const [farms, setFarms] = useState<Farm[]>([]);
   const [selectedTime, setSelectedTime] = useState("");
+  const [selectedFarm, setSelectedFarm] = useState("");
   const [amount, setAmount] = useState("");
   const [feedSize, setFeedSize] = useState("");
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -44,19 +52,52 @@ export default function AddFeedDialog({ onAdded }: Props) {
 
   useEffect(() => {
     if (open) {
+      // Reset form state when dialog opens
+      setSelectedTime("");
+      setSelectedFarm("");
+      setAmount("");
+      setFeedSize("");
+      setDate(format(new Date(), "yyyy-MM-dd"));
+
+      // Fetch feeding times
       supabase
         .from("feeding_times")
         .select("*")
         .order("sort_order")
-        .then(({ data }) => {
-          if (data) setFeedingTimes(data);
+        .then(({ data, error }) => {
+          if (error) {
+            console.error("Error fetching feeding times:", error);
+            toast.error("Failed to load feeding times");
+          } else if (data) {
+            setFeedingTimes(data);
+          }
+        });
+
+      // Fetch farms
+      supabase
+        .from("farms")
+        .select("*")
+        .order("name")
+        .then(({ data, error }) => {
+          if (error) {
+            console.error("Error fetching farms:", error);
+            toast.error("Failed to load farms");
+          } else if (data) {
+            setFarms(data);
+            // Set default farm if provided
+            if (defaultFarmId) {
+              setSelectedFarm(defaultFarmId);
+            } else if (data.length > 0) {
+              setSelectedFarm(data[0].id);
+            }
+          }
         });
     }
-  }, [open]);
+  }, [open, defaultFarmId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedTime || !amount || !feedSize) return;
+    if (!user || !selectedTime || !amount || !feedSize || !selectedFarm) return;
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) {
       toast.error("Enter a valid amount");
@@ -64,17 +105,18 @@ export default function AddFeedDialog({ onAdded }: Props) {
     }
     setLoading(true);
     try {
-      // Get or create daily log for this date
+      // Get or create daily log for this date and farm
       let { data: log } = await supabase
         .from("daily_logs")
         .select("id")
         .eq("date", date)
+        .eq("farm_id", selectedFarm)
         .maybeSingle();
 
       if (!log) {
         const { data: newLog, error: logErr } = await supabase
           .from("daily_logs")
-          .insert({ date })
+          .insert({ date, farm_id: selectedFarm })
           .select("id")
           .single();
         if (logErr) throw logErr;
@@ -95,6 +137,7 @@ export default function AddFeedDialog({ onAdded }: Props) {
       setAmount("");
       setSelectedTime("");
       setFeedSize("");
+      setSelectedFarm(defaultFarmId || (farms.length > 0 ? farms[0].id : ""));
       onAdded();
     } catch (err: any) {
       toast.error(err.message);
@@ -123,8 +166,23 @@ export default function AddFeedDialog({ onAdded }: Props) {
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
           </div>
           <div className="space-y-2">
+            <Label>Farm</Label>
+            <Select key={`farm-${farms.length}`} value={selectedFarm} onValueChange={setSelectedFarm} required>
+              <SelectTrigger>
+                <SelectValue placeholder="Select farm" />
+              </SelectTrigger>
+              <SelectContent>
+                {farms.map((farm) => (
+                  <SelectItem key={farm.id} value={farm.id}>
+                    {farm.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label>Feeding Time</Label>
-            <Select value={selectedTime} onValueChange={setSelectedTime} required>
+            <Select key={`time-${feedingTimes.length}`} value={selectedTime} onValueChange={setSelectedTime} required>
               <SelectTrigger>
                 <SelectValue placeholder="Select time slot" />
               </SelectTrigger>

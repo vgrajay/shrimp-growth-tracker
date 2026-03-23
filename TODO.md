@@ -1,3 +1,10 @@
 - [x] Create migration to remove worker ability to add feed log entries
 - [x] Verify migration SQL is correct and limited to feed_entries insert policy
 - [x] Summarize change
+- [x] Remove add feed button for workers (conditional rendering in Dashboard)
+- [x] Remove ABW chart for workers (conditional rendering in Dashboard)
+- [x] Create farms table migration with Farm 1, 2, and 3
+- [x] Add farm_id to daily_logs table and duplicate data for Farm 2 & 3
+- [x] Add farm selection buttons to Dashboard and filter daily logs by selected farm
+- [x] Add farm selection to Add Feed Dialog for explicit farm assignment
+- [x] Fix farm and time slot selection issues in Add Feed Dialog

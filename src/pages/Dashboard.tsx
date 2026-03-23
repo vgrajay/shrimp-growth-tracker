@@ -7,6 +7,7 @@ import AddFeedDialog from "@/components/AddFeedDialog";
 import GrowthChart from "@/components/GrowthChart";
 import AdminFeedingTimes from "@/components/AdminFeedingTimes";
 import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface FeedEntry {
   id: string;
@@ -20,18 +21,46 @@ interface DailyLog {
   date: string;
   abw: number | null;
   notes: string | null;
+  farm_id: string;
   feed_entries: FeedEntry[];
+}
+
+interface Farm {
+  id: string;
+  name: string;
 }
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const [logs, setLogs] = useState<DailyLog[]>([]);
+  const [farms, setFarms] = useState<Farm[]>([]);
+  const [selectedFarmId, setSelectedFarmId] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
+  const fetchFarms = async () => {
+    const { data, error } = await supabase
+      .from("farms")
+      .select("*")
+      .order("name");
+
+    if (error) {
+      console.error(error);
+    } else {
+      setFarms(data ?? []);
+      // Set default to first farm if available
+      if (data && data.length > 0 && !selectedFarmId) {
+        setSelectedFarmId(data[0].id);
+      }
+    }
+  };
+
   const fetchLogs = async () => {
+    if (!selectedFarmId) return;
+
     const { data, error } = await supabase
       .from("daily_logs")
       .select("*, feed_entries(*, feeding_times(label, sort_order))")
+      .eq("farm_id", selectedFarmId)
       .order("date", { ascending: false })
       .limit(30);
 
@@ -44,8 +73,14 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchLogs();
+    fetchFarms();
   }, []);
+
+  useEffect(() => {
+    if (selectedFarmId) {
+      fetchLogs();
+    }
+  }, [selectedFarmId]);
 
   const chartData = [...logs]
     .reverse()
@@ -77,6 +112,25 @@ export default function Dashboard() {
 
         {/* Admin: feeding times config */}
         {isAdmin && <AdminFeedingTimes />}
+
+        {/* Farm Selection */}
+        <div className="space-y-2">
+          <h2 className="text-sm font-heading font-semibold text-muted-foreground uppercase tracking-wider">
+            Select Farm
+          </h2>
+          <div className="flex gap-2 flex-wrap">
+            {farms.map((farm) => (
+              <Button
+                key={farm.id}
+                variant={selectedFarmId === farm.id ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedFarmId(farm.id)}
+              >
+                {farm.name}
+              </Button>
+            ))}
+          </div>
+        </div>
 
         {/* Daily logs */}
         <h2 className="text-sm font-heading font-semibold text-muted-foreground uppercase tracking-wider">
@@ -118,7 +172,7 @@ export default function Dashboard() {
         )}
 
         {/* FAB */}
-        {isAdmin && <AddFeedDialog onAdded={fetchLogs} />}
+        {isAdmin && <AddFeedDialog onAdded={fetchLogs} defaultFarmId={selectedFarmId} />}
       </main>
     </div>
   );
