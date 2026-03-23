@@ -10,8 +10,8 @@ export default function AppHeader() {
     <header className="sticky top-0 z-50 bg-card border-b border-border shadow-sm">
       <div className="container flex items-center justify-between h-14 px-4">
         <div className="flex items-center gap-2">
-          <Shell className="h-6 w-6 text-primary" />
-          <h1 className="text-lg font-heading font-bold text-foreground">ShrimpGrowthPro</h1>
+          <img src="/decoders.png" alt="Decoders logo" className="h-6 w-6 object-contain" />
+          <h1 className="text-lg font-heading font-bold text-foreground">Shrimp Track</h1>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={isAdmin ? "default" : "secondary"} className="text-xs">

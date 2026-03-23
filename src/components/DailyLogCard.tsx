@@ -28,9 +28,10 @@ interface Props {
   log: DailyLog;
   previousAbw: number | null;
   onRefresh: () => void;
+  totalCumulativeFeed: number;
 }
 
-export default function DailyLogCard({ log, previousAbw, onRefresh }: Props) {
+export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulativeFeed }: Props) {
   const { isAdmin } = useAuth();
   const [editingAbw, setEditingAbw] = useState(false);
   const [abwValue, setAbwValue] = useState(log.abw?.toString() ?? "");
@@ -84,9 +85,14 @@ export default function DailyLogCard({ log, previousAbw, onRefresh }: Props) {
         </div>
         <div className="flex items-center gap-2">
           {totalFeed > 0 && (
-            <Badge variant="secondary" className="text-xs font-mono">
-              {totalFeed.toFixed(1)} kg
-            </Badge>
+            <div className="flex flex-col items-end gap-1">
+              <Badge variant="secondary" className="text-xs font-mono">
+                Day: {totalFeed.toFixed(1)} kg
+              </Badge>
+              <Badge variant="outline" className="text-xs font-mono">
+                Cumulative: {totalCumulativeFeed.toFixed(1)} kg
+              </Badge>
+            </div>
           )}
           {isAdmin && (
             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={handleDelete}>
