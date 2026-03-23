@@ -73,9 +73,9 @@ CREATE POLICY "Admins can manage feeding times" ON public.feeding_times
 
 -- Insert default feeding times
 INSERT INTO public.feeding_times (label, sort_order) VALUES
-  ('Morning (07:00)', 1),
-  ('Midday (12:00)', 2),
-  ('Evening (17:00)', 3);
+  ('Morning (07:00)AM', 1),
+  ('Midday (12:00)PM', 2),
+  ('Evening (05:00)PM', 3);
 
 -- Daily logs table
 CREATE TABLE public.daily_logs (

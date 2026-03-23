@@ -12,6 +12,7 @@ import { Trash2, Weight, TrendingUp } from "lucide-react";
 interface FeedEntry {
   id: string;
   amount: number;
+  feed_size: string | null;
   feeding_time_id: string;
   feeding_times: { label: string; sort_order: number } | null;
 }
@@ -110,7 +111,12 @@ export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulat
                 key={entry.id}
                 className="flex items-center justify-between bg-muted rounded-md px-3 py-1.5 text-sm"
               >
-                <span className="text-muted-foreground">{entry.feeding_times?.label ?? "Unknown"}</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-muted-foreground">{entry.feeding_times?.label ?? "Unknown"}</span>
+                  {entry.feed_size && (
+                    <span className="text-xs text-muted-foreground">Size: {entry.feed_size}</span>
+                  )}
+                </div>
                 <span className="font-mono font-medium text-foreground">{entry.amount} kg</span>
               </div>
             ))}
@@ -119,7 +125,8 @@ export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulat
           <p className="text-xs text-muted-foreground italic">No feed entries yet</p>
         )}
 
-        {/* ABW & ADG */}
+        {/* ABW & ADG - Admin only */}
+        {isAdmin && (
         <div className="flex items-center gap-3 pt-1 border-t border-border">
           <div className="flex items-center gap-1.5 flex-1">
             <Weight className="h-3.5 w-3.5 text-primary" />
@@ -148,13 +155,14 @@ export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulat
               </button>
             )}
           </div>
-          {adg && (
+          {adg && isAdmin && (
             <div className="flex items-center gap-1">
               <TrendingUp className="h-3.5 w-3.5 text-success" />
               <span className="text-xs font-mono text-success">ADG: {adg}g</span>
             </div>
           )}
         </div>
+        )}
       </CardContent>
     </Card>
   );

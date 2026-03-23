@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Shrimp Track
 
-TODO: Document your project here
+A comprehensive shrimp growth tracking application for monitoring and managing shrimp farming operations.

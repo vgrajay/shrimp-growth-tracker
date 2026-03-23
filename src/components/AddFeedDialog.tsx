@@ -38,6 +38,7 @@ export default function AddFeedDialog({ onAdded }: Props) {
   const [feedingTimes, setFeedingTimes] = useState<FeedingTime[]>([]);
   const [selectedTime, setSelectedTime] = useState("");
   const [amount, setAmount] = useState("");
+  const [feedSize, setFeedSize] = useState("");
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [loading, setLoading] = useState(false);
 
@@ -55,7 +56,7 @@ export default function AddFeedDialog({ onAdded }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedTime || !amount) return;
+    if (!user || !selectedTime || !amount || !feedSize) return;
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) {
       toast.error("Enter a valid amount");
@@ -84,6 +85,7 @@ export default function AddFeedDialog({ onAdded }: Props) {
         log_id: log!.id,
         feeding_time_id: selectedTime,
         amount: amountNum,
+        feed_size: feedSize,
         created_by: user.id,
       });
       if (error) throw error;
@@ -92,6 +94,7 @@ export default function AddFeedDialog({ onAdded }: Props) {
       setOpen(false);
       setAmount("");
       setSelectedTime("");
+      setFeedSize("");
       onAdded();
     } catch (err: any) {
       toast.error(err.message);
@@ -143,6 +146,16 @@ export default function AddFeedDialog({ onAdded }: Props) {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="e.g. 2.5"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Feed Size</Label>
+            <Input
+              type="text"
+              value={feedSize}
+              onChange={(e) => setFeedSize(e.target.value)}
+              placeholder="e.g. 1s, 1m, 1l, 2s"
               required
             />
           </div>
