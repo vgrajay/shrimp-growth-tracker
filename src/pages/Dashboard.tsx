@@ -118,7 +118,7 @@ export default function Dashboard() {
         )}
 
         {/* FAB */}
-        <AddFeedDialog onAdded={fetchLogs} />
+        {isAdmin && <AddFeedDialog onAdded={fetchLogs} />}
       </main>
     </div>
   );

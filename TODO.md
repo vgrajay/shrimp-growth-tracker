@@ -1,0 +1,3 @@
+- [x] Create migration to remove worker ability to add feed log entries
+- [x] Verify migration SQL is correct and limited to feed_entries insert policy
+- [x] Summarize change
