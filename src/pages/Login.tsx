@@ -34,8 +34,9 @@ export default function Login() {
         if (error) throw error;
         toast.success("Logged in successfully!");
       }
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred';
+      toast.error(message);
     } finally {
       setLoading(false);
     }

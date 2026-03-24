@@ -19,6 +19,7 @@ export type Database = {
           abw: number | null
           created_at: string
           date: string
+          farm_id: string
           id: string
           notes: string | null
           updated_at: string
@@ -27,6 +28,7 @@ export type Database = {
           abw?: number | null
           created_at?: string
           date: string
+          farm_id: string
           id?: string
           notes?: string | null
           updated_at?: string
@@ -35,17 +37,27 @@ export type Database = {
           abw?: number | null
           created_at?: string
           date?: string
+          farm_id?: string
           id?: string
           notes?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "daily_logs_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       feed_entries: {
         Row: {
           amount: number
           created_at: string
           created_by: string
+          feed_size: string | null
           feeding_time_id: string
           id: string
           log_id: string
@@ -54,6 +66,7 @@ export type Database = {
           amount: number
           created_at?: string
           created_by: string
+          feed_size?: string | null
           feeding_time_id: string
           id?: string
           log_id: string
@@ -62,6 +75,7 @@ export type Database = {
           amount?: number
           created_at?: string
           created_by?: string
+          feed_size?: string | null
           feeding_time_id?: string
           id?: string
           log_id?: string
@@ -101,6 +115,27 @@ export type Database = {
           id?: string
           label?: string
           sort_order?: number
+        }
+        Relationships: []
+      }
+      farms: {
+        Row: {
+          created_at: string
+          doc: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          doc?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          doc?: string | null
+          id?: string
+          name?: string
         }
         Relationships: []
       }

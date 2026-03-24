@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Trash2, Weight, TrendingUp } from "lucide-react";
+import { Trash2, Weight, TrendingUp, Calendar } from "lucide-react";
 
 interface FeedEntry {
   id: string;
@@ -30,15 +30,21 @@ interface Props {
   previousAbw: number | null;
   onRefresh: () => void;
   totalCumulativeFeed: number;
+  farmDoc?: string | null;
 }
 
-export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulativeFeed }: Props) {
+export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulativeFeed, farmDoc }: Props) {
   const { isAdmin } = useAuth();
   const [editingAbw, setEditingAbw] = useState(false);
   const [abwValue, setAbwValue] = useState(log.abw?.toString() ?? "");
 
   const adg = log.abw && previousAbw ? ((log.abw - previousAbw) / 7).toFixed(3) : null;
   const totalFeed = log.feed_entries.reduce((sum, e) => sum + e.amount, 0);
+  
+  // Calculate days since DOC
+  const daysFromDoc = farmDoc 
+    ? differenceInDays(new Date(log.date + "T00:00:00"), new Date(farmDoc + "T00:00:00")) + 1
+    : null;
 
   const handleSaveAbw = async () => {
     const val = parseFloat(abwValue);
@@ -80,9 +86,17 @@ export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulat
           <CardTitle className="text-base font-heading font-semibold text-foreground">
             {format(new Date(log.date + "T00:00:00"), "dd/MM/yyyy")}
           </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            {format(new Date(log.date + "T00:00:00"), "EEEE")}
-          </p>
+          <div className="flex items-center gap-2 pt-1">
+            <p className="text-xs text-muted-foreground">
+              {format(new Date(log.date + "T00:00:00"), "EEEE")}
+            </p>
+            {daysFromDoc !== null && (
+              <Badge variant="secondary" className="text-xs font-mono bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-100">
+                <Calendar className="h-3 w-3 mr-1" />
+                Day {daysFromDoc}
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {totalFeed > 0 && (
