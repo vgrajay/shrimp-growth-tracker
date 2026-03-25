@@ -65,6 +65,20 @@ export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulat
     }
   };
 
+  const handleDeleteFeedEntry = async (entryId: string) => {
+    if (!confirm("Delete this feed entry?")) return;
+    const { error } = await supabase
+      .from("feed_entries")
+      .delete()
+      .eq("id", entryId);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Feed entry deleted");
+      onRefresh();
+    }
+  };
+
   const handleDelete = async () => {
     if (!confirm("Delete this log and all feed entries?")) return;
     const { error } = await supabase.from("daily_logs").delete().eq("id", log.id);
@@ -123,7 +137,7 @@ export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulat
             {sortedEntries.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-center justify-between bg-muted rounded-md px-3 py-1.5 text-sm"
+                className="flex items-center justify-between bg-muted rounded-md px-3 py-1.5 text-sm group"
               >
                 <div className="flex flex-col gap-0.5">
                   <span className="text-muted-foreground">{entry.feeding_times?.label ?? "Unknown"}</span>
@@ -131,7 +145,19 @@ export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulat
                     <span className="text-xs text-muted-foreground">Size: {entry.feed_size}</span>
                   )}
                 </div>
-                <span className="font-mono font-medium text-foreground">{entry.amount} kg</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-medium text-foreground">{entry.amount} kg</span>
+                  {isAdmin && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" 
+                      onClick={() => handleDeleteFeedEntry(entry.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
