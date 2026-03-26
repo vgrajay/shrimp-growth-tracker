@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -26,68 +26,104 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // `undefined` = auth not yet initialized; `null` = initialized, no session
-  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
-  const [roleFetched, setRoleFetched] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // ── Effect 1: Auth state listener ────────────────────────────────────────
-  // IMPORTANT: Keep this callback fully synchronous.
-  // Making Supabase DB queries (await) inside onAuthStateChange causes a
-  // deadlock on reload: Supabase's internal auth queue is still processing
-  // the persisted-session refresh when the callback fires, so any new query
-  // gets blocked behind it and never resolves → setLoading(false) never runs.
+  // Track the current user ID so we skip redundant role fetches on
+  // TOKEN_REFRESHED events (same user, new token — role hasn't changed).
+  const currentUserIdRef = useRef<string | null>(null);
+
   useEffect(() => {
+    let mounted = true;
+
+    /**
+     * Fetch the user's role from the DB.  This is intentionally a standalone
+     * function called via setTimeout — never awaited inside onAuthStateChange.
+     */
+    async function fetchRole(userId: string) {
+      try {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (mounted) setRole(data?.role ?? "worker");
+      } catch {
+        // Fallback: if the query fails (RLS, network, etc.), default to worker
+        // so the app doesn't stay stuck on the loading screen.
+        if (mounted) setRole("worker");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    // ── Auth state listener ───────────────────────────────────────────────
+    //
+    // CRITICAL: This callback MUST stay fully synchronous.
+    //
+    // On page reload, Supabase restores the persisted session and holds an
+    // internal auth-queue lock while doing so.  If we `await` a DB query
+    // inside this callback, that query gets enqueued behind the lock and
+    // never resolves — causing an infinite loading state.
+    //
+    // The fix: set React state synchronously, then kick off the async role
+    // fetch via `setTimeout(fn, 0)` which runs on the next microtask,
+    // *after* the auth lock has been released.
+    //
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        if (!session?.user) {
+      (_event, newSession) => {
+        if (!mounted) return;
+
+        setSession(newSession);
+
+        if (newSession?.user) {
+          // Only fetch the role when the user actually changes.
+          // TOKEN_REFRESHED fires with the same user — no need to re-query.
+          if (newSession.user.id !== currentUserIdRef.current) {
+            currentUserIdRef.current = newSession.user.id;
+            setLoading(true);
+            setTimeout(() => {
+              if (mounted) fetchRole(newSession.user.id);
+            }, 0);
+          } else {
+            // Same user, just a token refresh — make sure loading is off.
+            setLoading(false);
+          }
+        } else {
+          // Signed out or no session
+          currentUserIdRef.current = null;
           setRole(null);
+          setLoading(false);
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // ── Effect 2: Role fetching ───────────────────────────────────────────────
-  // Runs in its own effect, safely outside the auth callback, keyed on the
-  // user ID so it re-runs only when the logged-in user actually changes.
-  useEffect(() => {
-    // Wait until auth has initialized (session !== undefined)
-    if (session === undefined) return;
-
-    if (!session?.user?.id) {
-      // No user: nothing to fetch, mark role as resolved
-      setRoleFetched(true);
-      return;
-    }
-
-    setRoleFetched(false);
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", session.user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        setRole(data?.role ?? "worker");
-        setRoleFetched(true);
-      });
-  }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Loading until auth initializes AND role is resolved (if a user is present)
-  const loading = session === undefined || !roleFetched;
-
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setRole(null);
+    // Let onAuthStateChange handle all state cleanup via the SIGNED_OUT event.
+    // We only call the Supabase API here.
+    const { error } = await supabase.auth.signOut();
+
+    // Safety net: if signOut errors (e.g. network issue, expired refresh token)
+    // force-clear client state so the user isn't trapped on the dashboard.
+    if (error) {
+      currentUserIdRef.current = null;
+      setSession(null);
+      setRole(null);
+      setLoading(false);
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
-        session: session ?? null,
+        session,
         user: session?.user ?? null,
         role,
         isAdmin: role === "admin",
