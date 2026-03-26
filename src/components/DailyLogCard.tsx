@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,9 +41,12 @@ export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulat
   const adg = log.abw && previousAbw ? ((log.abw - previousAbw) / 7).toFixed(3) : null;
   const totalFeed = log.feed_entries.reduce((sum, e) => sum + e.amount, 0);
   
-  // Calculate days since DOC
-  const daysFromDoc = farmDoc 
-    ? differenceInDays(new Date(log.date + "T00:00:00"), new Date(farmDoc + "T00:00:00")) + 1
+  // Calculate days since DOC safely
+  const parsedFarmDoc = farmDoc 
+    ? new Date(farmDoc.length === 10 ? farmDoc + "T00:00:00" : farmDoc)
+    : null;
+  const daysFromDoc = parsedFarmDoc 
+    ? differenceInCalendarDays(new Date(log.date + "T00:00:00"), parsedFarmDoc)
     : null;
 
   const handleSaveAbw = async () => {
@@ -202,6 +205,16 @@ export default function DailyLogCard({ log, previousAbw, onRefresh, totalCumulat
             </div>
           )}
         </div>
+        )}
+
+        {/* Notes - visible to all */}
+        {log.notes && (
+          <div className="pt-1 border-t border-border">
+            <p className="text-xs text-muted-foreground mb-0.5 font-semibold">Notes:</p>
+            <p className="text-sm text-foreground whitespace-pre-wrap bg-muted/30 rounded px-2 py-1.5">
+              {log.notes}
+            </p>
+          </div>
         )}
       </CardContent>
     </Card>

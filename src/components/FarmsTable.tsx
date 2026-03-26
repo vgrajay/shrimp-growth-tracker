@@ -94,7 +94,7 @@ export default function FarmsTable() {
                   <TableCell className="text-sm font-medium">{farm.name}</TableCell>
                   <TableCell className="text-sm">
                     {farm.doc
-                      ? format(new Date(farm.doc + "T00:00:00"), "dd/MM/yyyy")
+                      ? format(new Date(farm.doc.length === 10 ? farm.doc + "T00:00:00" : farm.doc), "dd/MM/yyyy")
                       : "Not Set"}
                   </TableCell>
                 </TableRow>
