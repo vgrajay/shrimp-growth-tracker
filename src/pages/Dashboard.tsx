@@ -10,7 +10,9 @@ import AddOxygenDialog from "@/components/AddOxygenDialog";
 import GrowthChart from "@/components/GrowthChart";
 import AdminFeedingTimes from "@/components/AdminFeedingTimes";
 import FarmsTable from "@/components/FarmsTable";
-import { Loader2, StickyNote, Send, FileText, Wind, Calendar } from "lucide-react";
+import { Loader2, StickyNote, Send, FileText, Wind, Calendar, Zap, AlertCircle } from "lucide-react";
+import ElectricMeterCard, { ElectricMeter, ElectricReading } from "@/components/ElectricMeterCard";
+import AddMeterReadingDialog from "@/components/AddMeterReadingDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,6 +60,11 @@ export default function Dashboard() {
   const [docValue, setDocValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("feed");
+
+  // Electric state
+  const [meters, setMeters] = useState<ElectricMeter[]>([]);
+  const [readings, setReadings] = useState<ElectricReading[]>([]);
+  const [electricLoading, setElectricLoading] = useState(false);
 
   // Notes state
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
@@ -146,8 +153,24 @@ export default function Dashboard() {
     }
   };
 
+  const fetchElectricData = useCallback(async () => {
+    setElectricLoading(true);
+    try {
+      const { data: meterData } = await supabase.from("electric_meters").select("*").order("name");
+      const { data: readingData } = await supabase.from("electric_readings").select("*").order("reading_date", { ascending: false });
+      
+      if (meterData) setMeters(meterData);
+      if (readingData) setReadings(readingData);
+    } catch (err) {
+      console.error("Error fetching electric data:", err);
+    } finally {
+      setElectricLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchFarms();
+    fetchElectricData();
   }, []);
 
   useEffect(() => {
@@ -283,15 +306,18 @@ export default function Dashboard() {
 
         {/* Main Tabs Area */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-4 h-12">
+          <TabsList className="grid w-full grid-cols-4 mb-4 h-12">
             <TabsTrigger value="feed" className="flex flex-col gap-1 items-center justify-center">
-              Feed Details
+              Feed
             </TabsTrigger>
             <TabsTrigger value="oxygen" className="flex flex-col gap-1 items-center justify-center relative">
               Oxygen
               {todayOxygenLogsCount > 0 && (
                 <span className="absolute top-1.5 right-2 flex h-2 w-2 rounded-full bg-primary" />
               )}
+            </TabsTrigger>
+            <TabsTrigger value="electric" className="flex flex-col gap-1 items-center justify-center">
+              Electric
             </TabsTrigger>
             <TabsTrigger value="notes" className="flex flex-col gap-1 items-center justify-center">
               Notes
@@ -377,6 +403,46 @@ export default function Dashboard() {
             </div>
           </TabsContent>
 
+          {/* ────── ELECTRIC TAB ────── */}
+          <TabsContent value="electric" className="space-y-4 mt-0 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-heading font-semibold text-muted-foreground uppercase tracking-wider">
+                Electric Meter Tracking
+              </h2>
+              <Badge variant="outline" className="flex items-center gap-1 border-yellow-200 text-yellow-700 bg-yellow-50 dark:bg-yellow-900/10">
+                <Zap className="h-3 w-3" />
+                Live Monitoring
+              </Badge>
+            </div>
+
+            {electricLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-yellow-600" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {meters.length > 0 ? (
+                  meters.map((meter) => (
+                    <ElectricMeterCard
+                      key={meter.id}
+                      meter={meter}
+                      readings={readings.filter((r) => r.meter_id === meter.id)}
+                      onRefresh={fetchElectricData}
+                    />
+                  ))
+                ) : (
+                  <Card className="border-dashed bg-card/40">
+                    <CardContent className="py-8 text-center text-muted-foreground text-sm flex flex-col items-center gap-2">
+                       <AlertCircle className="w-8 h-8 opacity-20" />
+                       <p>No meters found in database.</p>
+                       <p className="text-[10px]">Please run the SQL migration.</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+          </TabsContent>
+
           {/* ────── NOTES TAB ────── */}
           <TabsContent value="notes" className="space-y-4 mt-0 animate-in fade-in zoom-in-95 duration-200">
             <h2 className="text-sm font-heading font-semibold text-muted-foreground uppercase tracking-wider">
@@ -448,6 +514,7 @@ export default function Dashboard() {
         {/* Dynamic FABs based on active tab */}
         {isAdmin && activeTab === "feed" && <AddFeedDialog onAdded={fetchLogs} defaultFarmId={selectedFarmId} />}
         {isAdmin && activeTab === "oxygen" && <AddOxygenDialog onAdded={fetchLogs} defaultFarmId={selectedFarmId} />}
+        {isAdmin && activeTab === "electric" && <AddMeterReadingDialog onAdded={fetchElectricData} meters={meters} />}
         <FarmsTable />
       </main>
     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -26,6 +26,7 @@ interface FeedingTime {
   id: string;
   label: string;
   sort_order: number;
+  farm_id?: string | null;
 }
 
 interface Farm {
@@ -55,30 +56,30 @@ export default function AddFeedDialog({ onAdded, defaultFarmId }: Props) {
   const [alreadyFilledSlots, setAlreadyFilledSlots] = useState<string[]>([]);
   const [checkingSlots, setCheckingSlots] = useState(false);
 
+  const fetchFeedingTimes = async () => {
+    const { data, error } = await supabase
+      .from("feeding_times")
+      .select("*")
+      .order("sort_order");
+
+    if (error) {
+      console.error("Error fetching feeding times:", error);
+      toast.error("Failed to load feeding times");
+    } else if (data) {
+      setFeedingTimes(data);
+    }
+  };
+
   useEffect(() => {
     if (open) {
       // Reset form state when dialog opens
       setSelectedTime("");
-      setSelectedFarm("");
       setAmount("");
       setFeedSize("");
       setDate(format(new Date(), "yyyy-MM-dd"));
       setApplyToAll(false);
       setAlreadyFilledSlots([]);
-
-      // Fetch feeding times
-      supabase
-        .from("feeding_times")
-        .select("*")
-        .order("sort_order")
-        .then(({ data, error }) => {
-          if (error) {
-            console.error("Error fetching feeding times:", error);
-            toast.error("Failed to load feeding times");
-          } else if (data) {
-            setFeedingTimes(data);
-          }
-        });
+      fetchFeedingTimes();
 
       // Fetch farms
       supabase
@@ -91,16 +92,27 @@ export default function AddFeedDialog({ onAdded, defaultFarmId }: Props) {
             toast.error("Failed to load farms");
           } else if (data) {
             setFarms(data);
-            // Set default farm if provided
-            if (defaultFarmId) {
-              setSelectedFarm(defaultFarmId);
-            } else if (data.length > 0) {
-              setSelectedFarm(data[0].id);
-            }
+            const initialFarm = defaultFarmId || (data.length > 0 ? data[0].id : "");
+            setSelectedFarm(initialFarm);
           }
         });
     }
   }, [open, defaultFarmId]);
+
+  // Reset selected time when farm changes
+  useEffect(() => {
+    if (open && selectedFarm) {
+      setSelectedTime("");
+    }
+  }, [selectedFarm]);
+
+  // Derived: Filtered times for the selected farm (Farm Specific + Global)
+  const filteredFeedingTimes = feedingTimes.filter((ft) => {
+    // If it has a farm_id, it must match the selected farm
+    if (ft.farm_id) return ft.farm_id === selectedFarm;
+    // Otherwise it's a global time
+    return true;
+  });
 
   // Check which slots are already filled when date or farm changes
   useEffect(() => {
@@ -143,7 +155,7 @@ export default function AddFeedDialog({ onAdded, defaultFarmId }: Props) {
   }, [date, selectedFarm, open]);
 
   // Slots that would be filled by "apply to all"
-  const remainingSlots = feedingTimes.filter(
+  const remainingSlots = filteredFeedingTimes.filter(
     (ft) => !alreadyFilledSlots.includes(ft.id)
   );
 
@@ -301,8 +313,8 @@ export default function AddFeedDialog({ onAdded, defaultFarmId }: Props) {
           {/* Apply to all toggle */}
           <div
             className={`rounded-lg border-2 p-3 transition-all cursor-pointer ${applyToAll
-                ? "border-primary bg-primary/5"
-                : "border-border bg-muted/30 hover:border-primary/40"
+              ? "border-primary bg-primary/5"
+              : "border-border bg-muted/30 hover:border-primary/40"
               }`}
             onClick={() => setApplyToAll(!applyToAll)}
           >
@@ -315,8 +327,8 @@ export default function AddFeedDialog({ onAdded, defaultFarmId }: Props) {
               </div>
               <div
                 className={`flex items-center justify-center h-5 w-5 rounded-md border-2 transition-all ${applyToAll
-                    ? "bg-primary border-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "border-muted-foreground/30"
                   }`}
               >
                 {applyToAll && <Check className="h-3 w-3" />}
@@ -339,14 +351,14 @@ export default function AddFeedDialog({ onAdded, defaultFarmId }: Props) {
                           Will fill {remainingSlots.length} slot{remainingSlots.length > 1 ? "s" : ""}:
                         </p>
                         <div className="flex flex-wrap gap-1.5">
-                          {feedingTimes.map((ft) => {
+                          {filteredFeedingTimes.map((ft) => {
                             const isFilled = alreadyFilledSlots.includes(ft.id);
                             return (
                               <span
                                 key={ft.id}
                                 className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md font-mono ${isFilled
-                                    ? "bg-muted text-muted-foreground line-through"
-                                    : "bg-primary/10 text-primary font-medium"
+                                  ? "bg-muted text-muted-foreground line-through"
+                                  : "bg-primary/10 text-primary font-medium"
                                   }`}
                               >
                                 {isFilled ? (
@@ -380,25 +392,31 @@ export default function AddFeedDialog({ onAdded, defaultFarmId }: Props) {
           {!applyToAll && (
             <div className="space-y-2">
               <Label>Feeding Time</Label>
-              <Select key={`time-${feedingTimes.length}`} value={selectedTime} onValueChange={setSelectedTime} required>
+              <Select key={`time-${filteredFeedingTimes.length}`} value={selectedTime} onValueChange={setSelectedTime} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Select time slot" />
                 </SelectTrigger>
                 <SelectContent>
-                  {feedingTimes.map((ft) => {
-                    const isFilled = alreadyFilledSlots.includes(ft.id);
-                    return (
-                      <SelectItem
-                        key={ft.id}
-                        value={ft.id}
-                        disabled={isFilled}
-                        className={isFilled ? "opacity-50" : ""}
-                      >
-                        {ft.label}
-                        {isFilled && " ✓ filled"}
-                      </SelectItem>
-                    );
-                  })}
+                  {filteredFeedingTimes.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      No time slots defined. Add one in Schedules.
+                    </SelectItem>
+                  ) : (
+                    filteredFeedingTimes.map((ft) => {
+                      const isFilled = alreadyFilledSlots.includes(ft.id);
+                      return (
+                        <SelectItem
+                          key={ft.id}
+                          value={ft.id}
+                          disabled={isFilled}
+                          className={isFilled ? "opacity-50" : ""}
+                        >
+                          {ft.label}
+                          {isFilled && " ✓ filled"}
+                        </SelectItem>
+                      );
+                    })
+                  )}
                 </SelectContent>
               </Select>
             </div>

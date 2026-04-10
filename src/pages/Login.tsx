@@ -62,6 +62,24 @@ export default function Login() {
     }
   };
 
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    try {
+      // Use a dedicated demo account with limited "worker" permissions
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: "demo@gmail.com",
+        password: "demo123456",
+      });
+      if (signInError) throw signInError;
+      toast.success("Logged in as Guest successfully!");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred";
+      toast.error(message + " (Please ensure demo account is created in Supabase)");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -241,6 +259,25 @@ export default function Login() {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign In
+              </Button>
+
+              <div className="relative py-2">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or</span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={handleDemoLogin}
+                disabled={loading}
+              >
+                Guest / Demo Access
               </Button>
             </form>
           )}

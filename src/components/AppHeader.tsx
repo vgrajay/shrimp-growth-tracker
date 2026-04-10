@@ -3,9 +3,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -26,6 +28,7 @@ import {
   Settings,
   Shield,
   Trash2,
+  Lock,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
@@ -90,15 +93,15 @@ export default function AppHeader() {
 
   const handlePromoteWorker = async (worker: WorkerProfile) => {
     if (!window.confirm(`Are you sure you want to promote ${worker.display_name || 'this worker'} to an Admin?`)) return;
-    
+
     try {
       const { error } = await supabase
         .from("user_roles")
         .update({ role: "admin" })
         .eq("user_id", worker.user_id);
-        
+
       if (error) throw error;
-      
+
       toast.success(`${worker.display_name || 'Worker'} is now an Admin!`);
       // Update local state by removing them from the "worker" list
       setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
@@ -109,14 +112,14 @@ export default function AppHeader() {
 
   const handleRemoveWorker = async (worker: WorkerProfile) => {
     if (!window.confirm(`Are you sure you want to completely remove ${worker.display_name || 'this worker'} from the farm system? They will lose all access.`)) return;
-    
+
     try {
       const { error: roleError } = await supabase
         .from("user_roles")
         .delete()
         .eq("user_id", worker.user_id);
       if (roleError) throw roleError;
-      
+
       const { error: profileError } = await supabase
         .from("profiles")
         .delete()
@@ -206,6 +209,8 @@ export default function AppHeader() {
                     <Settings className="h-3.5 w-3.5 inline mr-1" />
                     Settings
                   </h3>
+                  
+                  {/* Theme Switch */}
                   <div className="flex items-center justify-between bg-muted/40 rounded-lg p-3">
                     <div className="flex items-center gap-2">
                       {theme === "dark" ? (
@@ -220,6 +225,9 @@ export default function AppHeader() {
                       onCheckedChange={toggleTheme}
                     />
                   </div>
+
+                  {/* Change Password Section */}
+                  <ChangePasswordSection />
                 </div>
 
                 {/* ─── Workers (Admin Only) ─── */}
@@ -331,5 +339,92 @@ export default function AppHeader() {
         </div>
       </div>
     </header>
+  );
+}
+
+function ChangePasswordSection() {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) throw error;
+      toast.success("Password updated successfully!");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowForm(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full text-xs h-8"
+        onClick={() => setShowForm(!showForm)}
+      >
+        <Lock className="h-3 w-3 mr-1.5" />
+        {showForm ? "Cancel" : "Change Password"}
+      </Button>
+
+      {showForm && (
+        <form
+          onSubmit={handleUpdatePassword}
+          className="space-y-2 bg-muted/40 rounded-lg p-3 animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase text-left block">
+              New Password
+            </label>
+            <Input
+              type="password"
+              placeholder="••••••••"
+              className="h-8 text-xs font-mono"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase text-left block">
+              Confirm Password
+            </label>
+            <Input
+              type="password"
+              placeholder="••••••••"
+              className="h-8 text-xs font-mono"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" className="w-full h-8 text-xs font-semibold" disabled={loading}>
+            {loading && <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />}
+            Update Password
+          </Button>
+        </form>
+      )}
+    </div>
   );
 }

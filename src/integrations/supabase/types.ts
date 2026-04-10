@@ -191,6 +191,23 @@ export type Database = {
           },
         ]
       }
+      electric_meters: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          created_at: string
+        }
+      electric_readings: {
+        Row: {
+          id: string
+          meter_id: string
+          reading: number
+          reading_date: string
+          created_by: string
+          created_at: string
+        }
+
       profiles: {
         Row: {
           created_at: string
