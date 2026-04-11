@@ -18,13 +18,19 @@ DECLARE
     feed_rec RECORD;
 BEGIN
     -- Get the first available user
-    SELECT id INTO v_user_id FROM profiles LIMIT 1;
+    SELECT user_id INTO v_user_id FROM profiles LIMIT 1;
     IF v_user_id IS NULL THEN
         RAISE EXCEPTION 'No user found in the profiles table';
     END IF;
 
-    -- Get the first farm ID (assuming you have one main farm)
-    SELECT id INTO v_farm_id FROM farms LIMIT 1;
+    -- Get Farm 1 ID specifically
+    SELECT id INTO v_farm_id FROM farms WHERE name ILIKE '%farm 1%' OR name ILIKE '%farm1%' LIMIT 1;
+    
+    -- Fallback to the oldest created farm if not found by name
+    IF v_farm_id IS NULL THEN
+        SELECT id INTO v_farm_id FROM farms ORDER BY created_at ASC LIMIT 1;
+    END IF;
+    
     IF v_farm_id IS NULL THEN
         RAISE EXCEPTION 'No farm found in the farms table';
     END IF;
@@ -48,37 +54,7 @@ BEGIN
     SELECT id INTO v_ft_530pm FROM feeding_times WHERE label = '5:30 PM' LIMIT 1;
     IF v_ft_530pm IS NULL THEN INSERT INTO feeding_times (label, sort_order, farm_id) VALUES ('5:30 PM', 6, v_farm_id) RETURNING id INTO v_ft_530pm; END IF;
 
-    -- Insert Daily Logs and Feed Entries
-    -- Day 3 (2026-03-19)
-    INSERT INTO daily_logs (date, farm_id) VALUES ('2026-03-19', v_farm_id) ON CONFLICT DO NOTHING RETURNING id INTO v_log_id;
-    IF v_log_id IS NULL THEN SELECT id INTO v_log_id FROM daily_logs WHERE date = '2026-03-19' AND farm_id = v_farm_id; END IF;
-    INSERT INTO feed_entries (log_id, feeding_time_id, amount, completed, created_by) VALUES 
-        (v_log_id, v_ft_7am, 2.3, true, v_user_id), (v_log_id, v_ft_12pm, 2.3, true, v_user_id), (v_log_id, v_ft_5pm, 2.3, true, v_user_id);
-
-    -- Day 4 (2026-03-20)
-    INSERT INTO daily_logs (date, farm_id) VALUES ('2026-03-20', v_farm_id) ON CONFLICT DO NOTHING RETURNING id INTO v_log_id;
-    IF v_log_id IS NULL THEN SELECT id INTO v_log_id FROM daily_logs WHERE date = '2026-03-20' AND farm_id = v_farm_id; END IF;
-    INSERT INTO feed_entries (log_id, feeding_time_id, amount, completed, created_by) VALUES 
-        (v_log_id, v_ft_7am, 2.5, true, v_user_id), (v_log_id, v_ft_12pm, 2.5, true, v_user_id), (v_log_id, v_ft_5pm, 2.5, true, v_user_id);
-
-    -- Day 5 (2026-03-21)
-    INSERT INTO daily_logs (date, farm_id) VALUES ('2026-03-21', v_farm_id) ON CONFLICT DO NOTHING RETURNING id INTO v_log_id;
-    IF v_log_id IS NULL THEN SELECT id INTO v_log_id FROM daily_logs WHERE date = '2026-03-21' AND farm_id = v_farm_id; END IF;
-    INSERT INTO feed_entries (log_id, feeding_time_id, amount, completed, created_by) VALUES 
-        (v_log_id, v_ft_7am, 2.8, true, v_user_id), (v_log_id, v_ft_12pm, 2.8, true, v_user_id), (v_log_id, v_ft_5pm, 2.8, true, v_user_id);
-
-    -- Day 6 (2026-03-22)
-    INSERT INTO daily_logs (date, farm_id) VALUES ('2026-03-22', v_farm_id) ON CONFLICT DO NOTHING RETURNING id INTO v_log_id;
-    IF v_log_id IS NULL THEN SELECT id INTO v_log_id FROM daily_logs WHERE date = '2026-03-22' AND farm_id = v_farm_id; END IF;
-    INSERT INTO feed_entries (log_id, feeding_time_id, amount, completed, created_by) VALUES 
-        (v_log_id, v_ft_7am, 3.2, true, v_user_id), (v_log_id, v_ft_12pm, 3.2, true, v_user_id), (v_log_id, v_ft_5pm, 3.2, true, v_user_id);
-
-    -- Day 7 (2026-03-23)
-    INSERT INTO daily_logs (date, farm_id) VALUES ('2026-03-23', v_farm_id) ON CONFLICT DO NOTHING RETURNING id INTO v_log_id;
-    IF v_log_id IS NULL THEN SELECT id INTO v_log_id FROM daily_logs WHERE date = '2026-03-23' AND farm_id = v_farm_id; END IF;
-    INSERT INTO feed_entries (log_id, feeding_time_id, amount, completed, created_by) VALUES 
-        (v_log_id, v_ft_7am, 3.6, true, v_user_id), (v_log_id, v_ft_12pm, 3.6, true, v_user_id), (v_log_id, v_ft_5pm, 3.6, true, v_user_id);
-
+    
     -- Day 8 (2026-03-24)
     INSERT INTO daily_logs (date, farm_id) VALUES ('2026-03-24', v_farm_id) ON CONFLICT DO NOTHING RETURNING id INTO v_log_id;
     IF v_log_id IS NULL THEN SELECT id INTO v_log_id FROM daily_logs WHERE date = '2026-03-24' AND farm_id = v_farm_id; END IF;
