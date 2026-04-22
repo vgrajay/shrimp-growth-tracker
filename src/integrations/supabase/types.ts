@@ -61,20 +61,87 @@ export type Database = {
           doc: string | null
           id: string
           name: string
+          org_id: string
         }
         Insert: {
           created_at?: string
           doc?: string | null
           id?: string
           name: string
+          org_id: string
         }
         Update: {
           created_at?: string
           doc?: string | null
           id?: string
           name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "farms_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          id: string
+          name: string
+          owner_id: string
+          invite_code: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          owner_id: string
+          invite_code?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          owner_id?: string
+          invite_code?: string
+          created_at?: string
         }
         Relationships: []
+      }
+      org_members: {
+        Row: {
+          id: string
+          org_id: string
+          user_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          user_id: string
+          role?: Database["public"]["Enums"]["app_role"]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          user_id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       feed_entries: {
         Row: {
@@ -263,6 +330,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_my_org_id: { Args: Record<PropertyKey, never>; Returns: string }
+      get_my_invite_code: { Args: Record<PropertyKey, never>; Returns: string }
+      is_org_member: { Args: { _org_id: string }; Returns: boolean }
+      is_org_owner: { Args: { _org_id: string }; Returns: boolean }
+      create_farm: { Args: { _name: string; _doc?: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "worker"

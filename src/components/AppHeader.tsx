@@ -29,6 +29,10 @@ import {
   Shield,
   Trash2,
   Lock,
+  Copy,
+  Check,
+  Building2,
+  Plus,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
@@ -45,11 +49,18 @@ interface WorkerProfile {
 }
 
 export default function AppHeader() {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, orgId, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [workers, setWorkers] = useState<WorkerProfile[]>([]);
+  const [workers, setWorkers]           = useState<WorkerProfile[]>([]);
   const [loadingWorkers, setLoadingWorkers] = useState(false);
-  const [showWorkers, setShowWorkers] = useState(false);
+  const [showWorkers, setShowWorkers]   = useState(false);
+  const [inviteCode, setInviteCode]     = useState<string | null>(null);
+  const [codeCopied, setCodeCopied]     = useState(false);
+
+  // Add Farm state
+  const [showAddFarm, setShowAddFarm]   = useState(false);
+  const [newFarmName, setNewFarmName]   = useState("");
+  const [addingFarm, setAddingFarm]     = useState(false);
 
   const displayName =
     user?.user_metadata?.display_name || user?.email || "User";
@@ -58,30 +69,57 @@ export default function AppHeader() {
   useEffect(() => {
     if (isAdmin) {
       fetchWorkers();
+      fetchInviteCode();
     }
-  }, [isAdmin]);
+  }, [isAdmin, orgId]);
+
+  const fetchInviteCode = async () => {
+    try {
+      const { data } = await supabase.rpc("get_my_invite_code");
+      if (data) setInviteCode(data);
+    } catch (err) {
+      console.error("Failed to fetch invite code:", err);
+    }
+  };
 
   const fetchWorkers = async () => {
+    if (!orgId) return;
     setLoadingWorkers(true);
     try {
+      // Fetch org members (workers only) via org_members
+      const { data: members } = await supabase
+        .from("org_members")
+        .select("user_id, role, created_at")
+        .eq("org_id", orgId)
+        .eq("role", "worker");
+
+      if (!members || members.length === 0) {
+        setWorkers([]);
+        return;
+      }
+
+      const userIds = members.map((m) => m.user_id);
+
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, user_id, display_name, login_id, created_at")
-        .order("created_at", { ascending: true });
+        .in("user_id", userIds);
 
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
+      const profileMap = new Map(
+        (profiles ?? []).map((p) => [p.user_id, p])
+      );
 
-      const rolesMap = new Map<string, AppRole>();
-      roles?.forEach((r) => rolesMap.set(r.user_id, r.role));
-
-      const merged: WorkerProfile[] = (profiles ?? [])
-        .map((p) => ({
-          ...p,
-          role: rolesMap.get(p.user_id) ?? "worker",
-        }))
-        .filter((w) => w.role === "worker");
+      const merged: WorkerProfile[] = members.map((m) => {
+        const p = profileMap.get(m.user_id);
+        return {
+          id:           p?.id ?? m.user_id,
+          user_id:      m.user_id,
+          display_name: p?.display_name ?? null,
+          login_id:     p?.login_id ?? null,
+          created_at:   p?.created_at ?? m.created_at,
+          role:         m.role,
+        };
+      });
 
       setWorkers(merged);
     } catch (err) {
@@ -91,42 +129,49 @@ export default function AppHeader() {
     }
   };
 
-  const handlePromoteWorker = async (worker: WorkerProfile) => {
-    if (!window.confirm(`Are you sure you want to promote ${worker.display_name || 'this worker'} to an Admin?`)) return;
-
+  const handleCopyCode = async () => {
+    if (!inviteCode) return;
     try {
-      const { error } = await supabase
-        .from("user_roles")
-        .update({ role: "admin" })
-        .eq("user_id", worker.user_id);
+      await navigator.clipboard.writeText(inviteCode);
+      setCodeCopied(true);
+      toast.success("Invite code copied!");
+      setTimeout(() => setCodeCopied(false), 2000);
+    } catch {
+      toast.error("Could not copy — please copy manually.");
+    }
+  };
 
+  const handleAddFarm = async () => {
+    if (!newFarmName.trim()) return;
+    setAddingFarm(true);
+    try {
+      const { error } = await supabase.rpc("create_farm", { _name: newFarmName.trim() });
       if (error) throw error;
-
-      toast.success(`${worker.display_name || 'Worker'} is now an Admin!`);
-      // Update local state by removing them from the "worker" list
-      setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
+      toast.success(`Farm "${newFarmName.trim()}" created!`);
+      setNewFarmName("");
+      setShowAddFarm(false);
+      // Reload the page so dashboard picks up the new farm
+      window.location.reload();
     } catch (err: any) {
-      toast.error(err.message || "Failed to promote worker");
+      toast.error(err.message || "Failed to create farm");
+    } finally {
+      setAddingFarm(false);
     }
   };
 
   const handleRemoveWorker = async (worker: WorkerProfile) => {
-    if (!window.confirm(`Are you sure you want to completely remove ${worker.display_name || 'this worker'} from the farm system? They will lose all access.`)) return;
+    if (!window.confirm(`Remove ${worker.display_name || "this worker"} from your farm? They will lose access.`)) return;
+    if (!orgId) return;
 
     try {
-      const { error: roleError } = await supabase
-        .from("user_roles")
+      const { error } = await supabase
+        .from("org_members")
         .delete()
+        .eq("org_id", orgId)
         .eq("user_id", worker.user_id);
-      if (roleError) throw roleError;
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", worker.id);
-      if (profileError) throw profileError;
-
-      toast.success(`${worker.display_name || 'Worker'} has been removed.`);
+      if (error) throw error;
+      toast.success(`${worker.display_name || "Worker"} has been removed.`);
       setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
     } catch (err: any) {
       toast.error(err.message || "Failed to remove worker");
@@ -209,7 +254,7 @@ export default function AppHeader() {
                     <Settings className="h-3.5 w-3.5 inline mr-1" />
                     Settings
                   </h3>
-                  
+
                   {/* Theme Switch */}
                   <div className="flex items-center justify-between bg-muted/40 rounded-lg p-3">
                     <div className="flex items-center gap-2">
@@ -230,64 +275,127 @@ export default function AppHeader() {
                   <ChangePasswordSection />
                 </div>
 
-                {/* ─── Workers (Admin Only) ─── */}
+                {/* ─── Admin-Only Section ─── */}
                 {isAdmin && (
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => {
-                        setShowWorkers(!showWorkers);
-                      }}
-                      className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors w-full"
-                    >
-                      <Users className="h-3.5 w-3.5" />
-                      Workers ({workers.length})
-                      <span className="ml-auto text-[10px]">
-                        {showWorkers ? "▲" : "▼"}
-                      </span>
-                    </button>
+                  <div className="space-y-4">
 
-                    {showWorkers && (
-                      <div className="space-y-2">
-                        {loadingWorkers ? (
-                          <p className="text-xs text-muted-foreground text-center py-3">
-                            Loading...
-                          </p>
-                        ) : workers.length === 0 ? (
-                          <p className="text-xs text-muted-foreground text-center py-3">
-                            No workers found.
-                          </p>
-                        ) : (
-                          workers.map((w) => (
-                            <div
-                              key={w.id}
-                              className="bg-muted/40 rounded-lg p-3 space-y-1"
+                    {/* Invite Code */}
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Shield className="h-3.5 w-3.5" />
+                        Worker Invite Code
+                      </h3>
+                      <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                          Share this code with workers so they can register and join your farm.
+                        </p>
+                        {inviteCode ? (
+                          <div className="flex items-center gap-2 mt-2">
+                            <code className="flex-1 text-sm font-mono font-bold tracking-widest bg-background border border-border rounded px-2 py-1 select-all text-primary">
+                              {inviteCode}
+                            </code>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={handleCopyCode}
                             >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
+                              {codeCopied
+                                ? <Check className="h-3.5 w-3.5 text-green-500" />
+                                : <Copy className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">Loading...</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Add Farm */}
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5" />
+                        Farms
+                      </h3>
+                      {showAddFarm ? (
+                        <div className="space-y-2 bg-muted/40 rounded-lg p-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <Input
+                            placeholder="Farm name (e.g. Farm 4)"
+                            value={newFarmName}
+                            onChange={(e) => setNewFarmName(e.target.value)}
+                            className="h-8 text-xs"
+                            onKeyDown={(e) => e.key === "Enter" && handleAddFarm()}
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="flex-1 h-7 text-xs"
+                              onClick={handleAddFarm}
+                              disabled={addingFarm}
+                            >
+                              {addingFarm && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                              Create
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs px-2"
+                              onClick={() => { setShowAddFarm(false); setNewFarmName(""); }}
+                            >
+                              ✕
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-xs h-8 gap-1.5"
+                          onClick={() => setShowAddFarm(true)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Add New Farm
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Workers List */}
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => { setShowWorkers(!showWorkers); }}
+                        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors w-full"
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                        Workers ({workers.length})
+                        <span className="ml-auto text-[10px]">
+                          {showWorkers ? "▲" : "▼"}
+                        </span>
+                      </button>
+
+                      {showWorkers && (
+                        <div className="space-y-2">
+                          {loadingWorkers ? (
+                            <p className="text-xs text-muted-foreground text-center py-3">
+                              Loading...
+                            </p>
+                          ) : workers.length === 0 ? (
+                            <div className="text-center py-4 space-y-1">
+                              <p className="text-xs text-muted-foreground">No workers yet.</p>
+                              <p className="text-[10px] text-muted-foreground/70">
+                                Share your invite code with workers to get started.
+                              </p>
+                            </div>
+                          ) : (
+                            workers.map((w) => (
+                              <div
+                                key={w.id}
+                                className="bg-muted/40 rounded-lg p-3 space-y-1"
+                              >
+                                <div className="flex items-center justify-between">
                                   <span className="text-sm font-medium truncate">
                                     {w.display_name || "Unnamed"}
                                   </span>
-                                  <Badge
-                                    variant={
-                                      w.role === "admin"
-                                        ? "default"
-                                        : "secondary"
-                                    }
-                                    className="text-[10px] px-1.5 py-0"
-                                  >
-                                    {w.role}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
-                                    title="Promote to Admin"
-                                    onClick={() => handlePromoteWorker(w)}
-                                  >
-                                    <Shield className="h-3.5 w-3.5" />
-                                  </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -298,27 +406,25 @@ export default function AppHeader() {
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 </div>
-                              </div>
-                              <div className="flex flex-wrap gap-x-3 gap-y-1">
-                                {w.login_id && (
-                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <IdCard className="h-3 w-3" />
-                                    {w.login_id}
-                                  </span>
-                                )}
-                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Calendar className="h-3 w-3" />
-                                  {format(
-                                    new Date(w.created_at),
-                                    "dd MMM yyyy"
+                                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                  {w.login_id && (
+                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <IdCard className="h-3 w-3" />
+                                      {w.login_id}
+                                    </span>
                                   )}
-                                </span>
+                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Calendar className="h-3 w-3" />
+                                    {format(new Date(w.created_at), "dd MMM yyyy")}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                 )}
               </div>
@@ -343,10 +449,10 @@ export default function AppHeader() {
 }
 
 function ChangePasswordSection() {
-  const [newPassword, setNewPassword] = useState("");
+  const [newPassword,     setNewPassword]     = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [loading,         setLoading]         = useState(false);
+  const [showForm,        setShowForm]        = useState(false);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -361,9 +467,7 @@ function ChangePasswordSection() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       toast.success("Password updated successfully!");
       setNewPassword("");

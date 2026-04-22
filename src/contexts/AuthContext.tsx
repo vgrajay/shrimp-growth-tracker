@@ -9,6 +9,7 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   role: AppRole | null;
+  orgId: string | null;
   isAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   role: null,
+  orgId: null,
   isAdmin: false,
   loading: true,
   signOut: async () => {},
@@ -28,6 +30,7 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Track the current user ID so we skip redundant role fetches on
@@ -41,18 +44,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
      * Fetch the user's role from the DB.  This is intentionally a standalone
      * function called via setTimeout — never awaited inside onAuthStateChange.
      */
-    async function fetchRole(userId: string) {
+    async function fetchRoleAndOrg(userId: string) {
       try {
-        const { data } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userId)
-          .maybeSingle();
-        if (mounted) setRole(data?.role ?? "worker");
+        const [{ data: roleData }, { data: orgData }] = await Promise.all([
+          supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", userId)
+            .maybeSingle(),
+          supabase
+            .from("org_members")
+            .select("org_id")
+            .eq("user_id", userId)
+            .maybeSingle(),
+        ]);
+        if (mounted) {
+          setRole(roleData?.role ?? "worker");
+          setOrgId(orgData?.org_id ?? null);
+        }
       } catch {
-        // Fallback: if the query fails (RLS, network, etc.), default to worker
-        // so the app doesn't stay stuck on the loading screen.
-        if (mounted) setRole("worker");
+        if (mounted) {
+          setRole("worker");
+          setOrgId(null);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -84,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             currentUserIdRef.current = newSession.user.id;
             setLoading(true);
             setTimeout(() => {
-              if (mounted) fetchRole(newSession.user.id);
+              if (mounted) fetchRoleAndOrg(newSession.user.id);
             }, 0);
           } else {
             // Same user, just a token refresh — make sure loading is off.
@@ -94,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Signed out or no session
           currentUserIdRef.current = null;
           setRole(null);
+          setOrgId(null);
           setLoading(false);
         }
       }
@@ -126,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user: session?.user ?? null,
         role,
+        orgId,
         isAdmin: role === "admin",
         loading,
         signOut,
