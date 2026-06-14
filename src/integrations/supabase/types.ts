@@ -161,7 +161,7 @@ export type Database = {
           created_at: string
           created_by: string
           feed_size: string | null
-          feeding_time_id: string
+          feeding_time_id: string | null
           id: string
           log_id: string
         }
@@ -171,7 +171,7 @@ export type Database = {
           created_at?: string
           created_by: string
           feed_size?: string | null
-          feeding_time_id: string
+          feeding_time_id?: string | null
           id?: string
           log_id: string
         }
@@ -181,7 +181,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           feed_size?: string | null
-          feeding_time_id?: string
+          feeding_time_id?: string | null
           id?: string
           log_id?: string
         }
