@@ -55,6 +55,73 @@ export type Database = {
           },
         ]
       }
+      electric_meters: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          org_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          org_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          org_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electric_meters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      electric_readings: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          meter_id: string
+          reading: number
+          reading_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          meter_id: string
+          reading: number
+          reading_date?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          meter_id?: string
+          reading?: number
+          reading_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electric_readings_meter_id_fkey"
+            columns: ["meter_id"]
+            isOneToOne: false
+            referencedRelation: "electric_meters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       farms: {
         Row: {
           created_at: string
@@ -80,62 +147,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "farms_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      organizations: {
-        Row: {
-          id: string
-          name: string
-          owner_id: string
-          invite_code: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          owner_id: string
-          invite_code?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          owner_id?: string
-          invite_code?: string
-          created_at?: string
-        }
-        Relationships: []
-      }
-      org_members: {
-        Row: {
-          id: string
-          org_id: string
-          user_id: string
-          role: Database["public"]["Enums"]["app_role"]
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          org_id: string
-          user_id: string
-          role?: Database["public"]["Enums"]["app_role"]
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          org_id?: string
-          user_id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_members_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -223,6 +234,62 @@ export type Database = {
           },
         ]
       }
+      org_members: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          id: string
+          invite_code: string
+          name: string
+          owner_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invite_code?: string
+          name: string
+          owner_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invite_code?: string
+          name?: string
+          owner_id?: string
+        }
+        Relationships: []
+      }
       oxygen_entries: {
         Row: {
           created_at: string
@@ -258,23 +325,6 @@ export type Database = {
           },
         ]
       }
-      electric_meters: {
-        Row: {
-          id: string
-          name: string
-          description: string | null
-          created_at: string
-        }
-      electric_readings: {
-        Row: {
-          id: string
-          meter_id: string
-          reading: number
-          reading_date: string
-          created_by: string
-          created_at: string
-        }
-
       profiles: {
         Row: {
           created_at: string
@@ -322,7 +372,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_farm: { Args: { _doc?: string; _name: string }; Returns: string }
       get_email_by_login_id: { Args: { _login_id: string }; Returns: string }
+      get_my_invite_code: { Args: never; Returns: string }
+      get_my_org_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -330,11 +383,8 @@ export type Database = {
         }
         Returns: boolean
       }
-      get_my_org_id: { Args: Record<PropertyKey, never>; Returns: string }
-      get_my_invite_code: { Args: Record<PropertyKey, never>; Returns: string }
       is_org_member: { Args: { _org_id: string }; Returns: boolean }
       is_org_owner: { Args: { _org_id: string }; Returns: boolean }
-      create_farm: { Args: { _name: string; _doc?: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "worker"
